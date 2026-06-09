@@ -17,7 +17,7 @@ def geocode_kakao(REST_API_KEY=None, address=None):
     
     Examples
     --------
-    my_kakao_rest = 'your-kakao-rest-api-key'
+    my_kakao_rest =  'SHIMBIRO98-5439f3d7eef2c504d3f7dad5c5d7a610'
     addr = '경기도 수원시 영통구 원천동 산5-1'
     result = geocode_kakao(my_kakao_rest, addr)
     print(result)  # [위도, 경도]
@@ -41,7 +41,7 @@ def geocode_kakao(REST_API_KEY=None, address=None):
  from py412 import geocode_kakao, files22
  import pandas as pd
 
- my_kakao_rest = 'your-kakao-rest-api-key'
+ my_kakao_rest =  'SHIMBIRO98-5439f3d7eef2c504d3f7dad5c5d7a610'
 
  df = files22()
  df = pd.DataFrame(df)
@@ -68,6 +68,7 @@ def geocode_kakao(REST_API_KEY=None, address=None):
      except Exception as e:
          newdf.at[i, 'lat_y'] = None
          newdf.at[i, 'long_x'] = None
+
 
  newdf.to_csv('newdf.csv', index=False, encoding='utf-8-sig')
  -----------------------------------------------
