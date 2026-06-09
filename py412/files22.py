@@ -1,3 +1,9 @@
+import importlib
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import pandas as pd
+import os
+
 def check_dependencies():
     required_pkgs = {'pandas': 'pandas', 'openpyxl': 'openpyxl', 'chardet': 'chardet', 'pyreadstat': 'pyreadstat'}
     missing = []
