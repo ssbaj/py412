@@ -9,6 +9,7 @@ setup(
         "openpyxl",
         "chardet",
         "pyreadstat",
+        "requests",
     ],
     python_requires=">=3.8",
 )
