@@ -1,12 +1,6 @@
 # conda install -c conda-forge pyreadstat
 # pip install pyreadstat
 
-import tkinter as tk
-from tkinter import filedialog, messagebox
-import pandas as pd
-import os
-import importlib
-
 def check_dependencies():
     required_pkgs = {'pandas': 'pandas', 'openpyxl': 'openpyxl', 'chardet': 'chardet', 'pyreadstat': 'pyreadstat'}
     missing = []
