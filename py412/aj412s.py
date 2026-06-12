@@ -1,6 +1,6 @@
 def aj412s():
     guide_text = """
-
+#------
 from py412 import aj412s
 import pandas as pd
 import statsmodels.formula.api as smf
@@ -11,7 +11,7 @@ data = {
     'age': [10, 18, 5, 7, 2, 9]                # 독립변수 2: 연식 (지어진 지 몇 년?)
 }
 
-df = pd.DataFrame(df)
+df = pd.DataFrame(data)
 
 formula = 'price ~ size + age'
 
