@@ -1,14 +1,16 @@
 def aj412s():
-    """
-    statsmodels 회귀분석 및 강건 표준오차(Robust Standard Error) 
-    옵션에 대한 가이드 코드를 콘솔에 출력하는 함수입니다.
-    """
     guide_text = """
+
 from py412 import aj412s
 import pandas as pd
 import statsmodels.formula.api as smf
 
-df=files22()
+data = {
+    'price': [250, 300, 350, 400, 450, 500],  # 종속변수: 집값 (단위: 천만 원)
+    'size': [15, 20, 25, 30, 35, 40],         # 독립변수 1: 집 크기 (평수)
+    'age': [10, 18, 5, 7, 2, 9]                # 독립변수 2: 연식 (지어진 지 몇 년?)
+}
+
 df = pd.DataFrame(df)
 
 formula = 'price ~ size + age'
