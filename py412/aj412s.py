@@ -8,8 +8,13 @@ def aj412s():
 import pandas as pd
 import statsmodels.formula.api as smf
 
-df=files22()
-df = pd.DataFrame(df)
+data = {
+    'price': [250, 300, 350, 400, 450, 500],  # 종속변수: 집값 (단위: 천만 원)
+    'size': [15, 20, 25, 30, 35, 40],         # 독립변수 1: 집 크기 (평수)
+    'age': [10, 8, 5, 3, 2, 1]                # 독립변수 2: 연식 (지어진 지 몇 년?)
+}
+
+df = pd.DataFrame(data)
 
 formula = 'price ~ size + age'
 
