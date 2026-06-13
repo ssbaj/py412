@@ -1,4 +1,4 @@
-def aj412s():
+def mywork():
     """
     statsmodels 회귀분석 및 강건 표준오차(Robust Standard Error) 
     옵션에 대한 가이드 코드를 콘솔에 출력하는 함수입니다.
