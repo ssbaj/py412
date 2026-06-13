@@ -1,4 +1,4 @@
-from .aj412s import aj412s
+from .mywork import mywork
 from .comp22 import comp22
 from .cor22 import cor22
 from .cor33 import cor33
@@ -8,6 +8,7 @@ from .files22 import files22
 from .geocode_kakao import geocode_kakao
 from .logit import logit
 from .mkcsv import mkcsv
+from .mkdum import mkdum
 from .mkxlsx import mkxlsx
 from .recode import recode
 from .sel22 import sel22
