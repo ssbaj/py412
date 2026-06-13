@@ -2,10 +2,12 @@ from .aj412s import aj412s
 from .comp22 import comp22
 from .cor22 import cor22
 from .cor33 import cor33
+from .del22 import del22
 from .desc22 import desc22
 from .files22 import files22
 from .geocode_kakao import geocode_kakao
 from .logit import logit
 from .mkcsv import mkcsv
 from .mkxlsx import mkxlsx
+from .sel22 import sel22
 from .selvar import selvar
