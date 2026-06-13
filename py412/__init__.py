@@ -9,5 +9,6 @@ from .geocode_kakao import geocode_kakao
 from .logit import logit
 from .mkcsv import mkcsv
 from .mkxlsx import mkxlsx
+from .recode import recode
 from .sel22 import sel22
 from .selvar import selvar
