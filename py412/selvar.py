@@ -77,9 +77,13 @@ class VariableSelector:
     def type_text(self, text):
         self.root.clipboard_clear()
         self.root.clipboard_append(text)
+        self.root.update() # [수정됨] Tkinter 클립보드 강제 동기화 (필수)
         
-        # 붙여넣기 전 포커스 전환을 위해 아주 잠깐 대기
-        time.sleep(0.1)
+        # [수정됨] 현재 포커스가 Tkinter 창에 있으므로, Alt+Tab으로 이전 창(에디터)으로 돌아갑니다.
+        pyautogui.hotkey('alt', 'tab')
+        time.sleep(0.3) # 화면이 전환될 때까지 여유 대기시간 부여
+        
+        # 이전 에디터 창의 커서 위치에 붙여넣기
         pyautogui.hotkey('ctrl', 'v') 
         print(text)
 
@@ -102,7 +106,8 @@ class VariableSelector:
             else:
                 target = selected_vars[0]
                 features = " + ".join(selected_vars[1:])
-                var_string = f"model = smf.ols(formula= '{target} ~ {features}', data={self.df_name} ).fit() "
+                # [수정됨] model 대신 result 사용, 끝의 .fit() 제거
+                var_string = f"result = smf.ols(formula= '{target} ~ {features}', data={self.df_name} ) "
             
             self.type_text(var_string)
             self.listbox.selection_clear(0, tk.END)
@@ -116,5 +121,3 @@ def selvar(df_obj):
             df_name = name
             break
     VariableSelector(df_obj, df_name)
-
-
