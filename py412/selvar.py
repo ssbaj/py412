@@ -106,8 +106,8 @@ class VariableSelector:
             else:
                 target = selected_vars[0]
                 features = " + ".join(selected_vars[1:])
-                # [수정됨] model 대신 result 사용, 끝의 .fit() 제거
-                var_string = f"result = smf.ols(formula= '{target} ~ {features}', data={self.df_name} ) "
+                # [수정됨] 끝 부분에 .fit() 추가
+                var_string = f"result = smf.ols(formula= '{target} ~ {features}', data={self.df_name} ).fit()"
             
             self.type_text(var_string)
             self.listbox.selection_clear(0, tk.END)
