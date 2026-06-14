@@ -1,4 +1,5 @@
 from .mywork import mywork
+from .class_col import class_col
 from .comp22 import comp22
 from .cor22 import cor22
 from .cor33 import cor33
