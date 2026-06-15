@@ -130,25 +130,22 @@ def geocode_kakao(REST_API_KEY=None, df=None, addr_col="addr", delay=0.1):
  ── 기본 사용법 ──────────────────────────────────────────────
 
  from py412 import geocode_kakao
+ from py412 import files22
  import pandas as pd
 
- my_kakao_rest = 'YOUR_KAKAO_REST_API_KEY'   # 카카오 REST API 키
- df = pd.read_excel('YOUR_DATA_SET.xlsx')    # 데이터셋이 xlsx파일인 경우. addr 컬럼 포함 필수
- df = pd.read_csv('YOUR_DATA_SET.csv')       # 데이터셋이 csv파일인 경우. addr 컬럼 포함 필수
+ df=files22()
  
+ my_kakao_rest = 'SHIMBIRO98-5439f3d7eef2c504d3f7dad5c5d7a610'   
+ df['번지'] = df['번지'].str.replace(r'0?([0-9]+)월 0?([0-9]+)일', r'\1-\2', regex=True)
+ df['addr'] = df['시군구'] + ' ' + df['번지']
+
  result_df = geocode_kakao(my_kakao_rest, df)
  result_df.to_csv('result.csv', index=False, encoding='utf-8-sig')
 
- ── 주소 만들기 ──────────────────────────────
- # 지번 패턴 변환 (0x월 0x일 -> x-x)
- import re
- df['번지'] = df['번지'].str.replace(r'0?([0-9]+)월 0?([0-9]+)일', r'\\1-\\2', regex=True)
- df['addr'] = df['시군구'] + ' ' + newdf['번지']
-
- # 특정 지역 필터링
- newdf = df[df['시군구'].str.contains('경기도 성남시 중원구 상대원동')].copy()
+ ── 특정 지역 필터링 ──────────────────────────
+ f = df[df['시군구'].str.contains('경기도 성남시 중원구 상대원동')].copy()
  
- ── 컬럼명이 'addr'이 아닐 경우 ──────────────────────────────
+ ── 컬럼명이 'addr'이 아닐 경우. 컬럼명이 '주소'일 경우 ────────────────────────
  result_df = geocode_kakao(my_kakao_rest, df, addr_col='주소')
 
  ── API 호출 간격 조정 (기본 0.1초) ──────────────────────────
