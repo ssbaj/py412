@@ -36,6 +36,7 @@ def geocode_df(REST_API_KEY=None, address=None):
 
  my_kakao_rest = 'YOUR_KAKAO_REST_API_KEY'
 
+ df = files22()
  df = pd.read_csv('YOUR_DATA_SET.csv')
  df = pd.read_excel('파일명.xlsx')
  # df 에는 반드시 'addr' 컬럼이 있어야 합니다.
