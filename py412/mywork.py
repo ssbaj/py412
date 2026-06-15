@@ -7,7 +7,7 @@ def mywork():
 
 from py412 import class_col comp22 cor22 cor33 del22 desc22 e_logit files22 geocode_kakao lm logit mkcsv mkdum mkxlsx mywork recode sel22 selvar
 
-import py412 as jj
+import py412 as py
 
 #  📈 데이터 마이닝 ----------
 # df에서 v2, v3, v4 컬럼만 추출하여 새로운 데이터프레임 생성
