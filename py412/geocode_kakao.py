@@ -163,7 +163,7 @@ def geocode_kakao(REST_API_KEY=None, df=None, addr_col="addr", delay=0.1):
  ── 카카오 REST API 키 발급 ──────────────────────────────────
 
  https://developers.kakao.com/ 에서 애플리케이션 생성 후
- [앱 키] > [REST API 키] 사용
+ # my_kakao_rest = 'SHIMBIRO98-5439f3d7eef2c504d3f7dad5c5d7a610'   
 
  ── 참고 데이터 출처 ─────────────────────────────────────────
 
