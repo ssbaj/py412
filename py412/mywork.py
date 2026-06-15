@@ -5,7 +5,7 @@ def mywork():
     """
     guide_text = """
 
-from py412 import class_col comp22 cor22 cor33 del22 desc22 e_logit files22 geocode_kakao lm logit mkcsv mkdum mkxlsx mywork recode sel22 selvar
+from py412 import class_col, comp22, cor22, cor33, del22, desc22, e_logit, files22, geocode_kakao, lm, logit, mkcsv, mkdum, mkxlsx, mywork, recode, sel22, selvar
 
 import py412 as py
 
