@@ -6,7 +6,7 @@ from .del22 import del22
 from .desc22 import desc22
 from .e_logit import e_logit
 from .files22 import files22
-from .filter22 import filer22
+from .filter22 import filter22
 from .geocode_kakao import geocode_kakao
 from .lm import lm
 from .logit import logit
