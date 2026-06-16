@@ -11,6 +11,23 @@ import statsmodels.formula.api as smf
 
 import py412 as py
 
+# pipe22, filter22, select22 사용예 ---------------
+df = pd.DataFrame({
+    'var1': [11, 12, 13, 14, 15, 16, 17, 18],
+    'var2': [10, 20, 30, 40, 50, 60, 70, 80],
+    'var3': [111, 112, 113, 114, 115, 116, 117, 118]
+})
+
+# R 스타일: df %>% filter(...) %>% select(...)
+# 파이썬 함수 스타일:
+df2 = pipe22(
+    df,
+    lambda d: filter22(d, " ( (var2!=30)  and (var3 != 114) ) "),
+    lambda d: filter22(d, " (  var1 <= 17 ) ") ,    
+    lambda d: select22(d, ['var2', 'var3'])
+)
+
+
 #  📈 데이터 마이닝 ----------
 # Grouping variable
 cn = df['age'].quantile([0.25,0.5,0.75])
