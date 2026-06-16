@@ -6,13 +6,17 @@ from .del22 import del22
 from .desc22 import desc22
 from .e_logit import e_logit
 from .files22 import files22
+from .filter22 import filer22
 from .geocode_kakao import geocode_kakao
 from .lm import lm
 from .logit import logit
 from .mkcsv import mkcsv
 from .mkdum import mkdum
+from .mkgroup import mkgroup
 from .mkxlsx import mkxlsx
 from .mywork import mywork
+from .pipe22 import pipe22
 from .recode import recode
 from .sel22 import sel22
+from .select22 import select22
 from .selvar import selvar
