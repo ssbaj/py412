@@ -5,11 +5,16 @@ def mywork():
     """
     guide_text = """
 
-from py412 import class_col, comp22, cor22, cor33, del22, desc22, e_logit, files22, geocode_kakao, lm, logit, mkcsv, mkdum, mkxlsx, mywork, recode, sel22, selvar, pipe22, filter22, select22
+from py412 import class_col, comp22, cor22, cor33, del22, desc22, e_logit, files22, geocode_kakao, get_geo, lm, logit, mkcsv, mkdum, mkxlsx, mywork, recode, sel22, selvar, pipe22, filter22, select22
 
 import pandas as pd
 import numpy as np
 import statsmodels.formula.api as smf
+import inspect
+
+print(inspect.getsource(py.get_geo))
+print(inspect.getsource(get_geo))
+
 
 import py412 as py
 
