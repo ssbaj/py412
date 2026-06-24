@@ -8,6 +8,7 @@ from .e_logit import e_logit
 from .files22 import files22
 from .filter22 import filter22
 from .geocode_kakao import geocode_kakao
+from .get_geo import get_geo
 from .lm import lm
 from .logit import logit
 from .mkcsv import mkcsv
