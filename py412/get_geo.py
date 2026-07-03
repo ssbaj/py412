@@ -2,14 +2,8 @@ import requests
 
 def get_geo(address, api_key):
     """
-    카카오 REST API를 이용해 단일 주소를 위도(lat)와 경도(lon)로 변환하는 함수
     'shimbiro-5439f3d7eef2c504d3f7dad5c5d7a610'
-    Parameters:
-        address (str): 검색할 지번 또는 도로명 주소
-        api_key (str): 카카오 REST API 키
-
-    Returns:
-        tuple: (위도, 경도) 형태의 튜플 반환. 검색 실패 시 None 반환.
+    'ELCAsVRAonkmHoaPlRc3bSQyM3elEka0GweK6KXSEPgm'
     """
     if not address or not api_key:
         print("[오류] 주소와 API 키를 모두 입력해주세요.")
