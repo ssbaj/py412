@@ -48,18 +48,37 @@ agg2 = df.groupby('gender')['age'].agg(['count','mean','std'])
  newdf = sel22(df, 'v2:v4')
  newdf = df[['v2', 'v3', 'v4']].copy()
 
-# rename
- df.columns = ['id2', 'conv2', 'brand2']
+# 변수명 바꾸기 janitor  --------------
+import janitor # 설치 후 불러오기만 하면 pandas 메서드로 자동 등록됩니다.
 
-# filter 명령문
+# 샘플 데이터
+df = pd.DataFrame({
+    'First Name': ['Kim', 'Lee'],
+    'AGE (year)': [25, 30],
+    'v1': [10, 20]
+})
+
+# 1) clean_names(): 공백, 특수문자, 대문자를 자동으로 소문자_언더바 형태로 일괄 정리
+df_clean = df.clean_names()
+# 결과 컬럼: ['first_name', 'age_year', 'v1']
+
+# 2) rename_columns(): 딕셔너리로 간편하게 변경 (메서드 체이닝 가능)
+df_renamed = df.rename_columns({'First Name': 'name', 'AGE (year)': 'age'})
+
+# 3) 위치(인덱스) 기반으로 손쉽게 변경
+# 0번, 1번 컬럼 변경
+df_pos = df.rename_columns({df.columns[0]: 'id', df.columns[1]: 'age'})
+
+
+# filter 명령문 --------------
  df = df[df['brand'].str.contains('KIA')].copy()
 
 # df에서 v4 컬럼 제거 후 결과를 다시 df에 덮어쓰기
  df = del22(df, 'v4')
  df = df.drop(columns=['v4'])
 
-# 번지 만들기
- df['번지'] = df['번지'].str.replace(r'0?([0-9]+)월 0?([0-9]+)일', r'\1-\2', regex=True)
+# 번지 만들기  --------------
+ df['번지'] = df['번지'].str.replace(r'0?([0-9]+)월 0?([0-9]+)일', r'\ 1 - \ 2', regex=True)
  df['addr'] = df['시군구'] + ' ' + df['번지']
 
 # Drop missing values (complete.cases)
@@ -131,7 +150,7 @@ result = result.fit(cov_type='HC3')
 #  📈 시뮬레이션 1 ----------
 
 sim1_data = pd.DataFrame({'size': [3], 'age': [3]})
-pred1 = model.predict(sim1_data)
+pred1 = result.predict(sim1_data)
 print(f"예측된 price: {pred1.iloc[0]:.4f}\n")
 
 #  📈 시뮬레이션 2 ----------
@@ -140,7 +159,7 @@ sim2_data = pd.DataFrame({
     'age': [3, 3, 3]
 })
 
-sim2_data['predicted_price'] = model.predict(sim2_data)
+sim2_data['predicted_price'] = result.predict(sim2_data)
 print(sim2_data.to_string(index=False))
 
 #  📈 시뮬레이션 2를 활용한 Line Graph 설명문 ----------
