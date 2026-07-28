@@ -1,10 +1,3 @@
-""
-addr="https://hogangnono.com/apt/6i404/item-catalog"
-out="myfuntest.csv"
-get_hogangnono_items(addr, out)
-
-"""
-
 import csv
 import json
 import re
@@ -163,8 +156,6 @@ def _fetch_item_details(session: requests.Session, markers: list) -> dict:
             print(f"  경고: apt/list 배치 {i} 응답 오류: {payload}", file=sys.stderr)
             continue
         for it in payload["data"]["items"]:
-            # 상세 응답의 최상위 itemId는 실제 매물 내부ID로 마커의 itemId와 다르다.
-            # 마커와 매칭하려면 반드시 areaHoId를 키로 써야 한다.
             details[(it["areaHoId"], it["tradeType"])] = it
         time.sleep(0.2)
     return details
@@ -193,7 +184,7 @@ def _to_row(mk: dict, it: dict) -> dict:
         "월세(만원)": it.get("rentMin"),
         "매물설명": it.get("itemTitle"),
         "중개사무소": sub_items[0].get("agentName") if sub_items else None,
-        "지번주소": None,  # 아래에서 apt_info 기준으로 채움
+        "지번주소": None,
         "도로명주소": None,
         "위도": mk["lat"],
         "경도": mk["lng"],
@@ -204,12 +195,9 @@ def _to_row(mk: dict, it: dict) -> dict:
 
 def get_hogangnono_items(addr: str, out_csv: str | None = None, max_rings: int = 3) -> list:
     """
-    addr: 호갱노노 아파트 단지 페이지 URL (예: "https://hogangnono.com/apt/6ipa0/item-catalog")
+    addr: 호갱노노 아파트 단지 페이지 URL
     out_csv: 지정 시 해당 경로에 CSV로도 저장. None이면 저장 안 함.
-    max_rings: 단지 좌표 주변 geohash 타일 탐색 반경을 1(3x3)부터 시작해
-               매물을 못 찾으면 이 값까지 단계적으로 넓혀가며 재탐색한다.
-
-    반환값: 매물 정보 dict의 리스트 (동/층/면적/가격/설명/중개사무소/단지주소/좌표 등 포함)
+    max_rings: 단지 좌표 주변 geohash 타일 탐색 반경
     """
     apt_hash = _extract_apt_hash(addr)
     page_url = f"https://hogangnono.com/apt/{apt_hash}/0"
@@ -261,3 +249,4 @@ if __name__ == "__main__":
     out_csv = sys.argv[2] if len(sys.argv) > 2 else None
     items = get_hogangnono_items(addr, out_csv)
     print(json.dumps(items[:5], ensure_ascii=False, indent=2))
+    
