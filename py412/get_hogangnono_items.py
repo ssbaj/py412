@@ -1,235 +1,263 @@
-import requests
+""
+addr="https://hogangnono.com/apt/6i404/item-catalog"
+out="myfuntest.csv"
+get_hogangnono_items(addr, out)
+
+"""
+
+import csv
+import json
+import re
+import sys
 import time
 
+from curl_cffi import requests
 
-def geocode_df(REST_API_KEY=None, address=None):
-    """
-    카카오 REST API를 이용한 주소 -> 위경도 변환 함수
-    
-    Parameters
-    ----------
-    REST_API_KEY : str
-        카카오 REST API 키
-    address : str
-        지번 주소 또는 도로명 주소
-    
-    Returns
-    -------
-    list : [위도(y), 경도(x)] 또는 None
-    """
-    if REST_API_KEY is None:
-        print("""
- 필요 라이브러리: requests, pandas
-   # pip install requests pandas
-
- # 국토정보플랫폼     : https://map.ngii.go.kr/
- # 환경공간정보서비스 : https://egis.me.go.kr/
- # 실거래가공개시스템 : https://rt.molit.go.kr/
- # KB통계            : https://kbland.kr/
- # 콤파스            : https://compas.lh.or.kr/
-
- -----------------------------------------------
- 사용 예시:
-
- from geocode_kakao import geocode_df, geocode_kakao
- import pandas as pd
-
- my_kakao_rest = 'YOUR_KAKAO_REST_API_KEY'
-
- df = files22()
- df = pd.read_csv('YOUR_DATA_SET.csv')
- df = pd.read_excel('파일명.xlsx')
- # df 에는 반드시 'addr' 컬럼이 있어야 합니다.
-
- result_df = geocode_kakao(my_kakao_rest, df)
- result_df.to_csv('result.csv', index=False, encoding='utf-8-sig')
- -----------------------------------------------
-        """)
-        return None
-
-    if address is None:
-        print("[오류] address 인자가 필요합니다.")
-        return None
-
-    if isinstance(address, list):
-        address = address[0]
-
-    url = "https://dapi.kakao.com/v2/local/search/address.json"
-    headers = {"Authorization": f"KakaoAK {REST_API_KEY}"}
-    params = {"query": address}
-
-    try:
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        data = response.json()
-
-        documents = data.get("documents", [])
-        if not documents:
-            print(f"[결과 없음] 주소를 찾을 수 없습니다: {address}")
-            return None
-
-        long_x = documents[0].get("x")  # 경도
-        lat_y = documents[0].get("y")   # 위도
-
-        return [long_x, lat_y]
-
-    except requests.exceptions.RequestException as e:
-        print(f"[API 오류] {e}")
-        return None
+TRADE_TYPE_LABEL = {"trade": "매매", "charter": "전세", "rental": "월세", "short": "단기"}
+DIRECTION_LABEL = {
+    "e": "동향", "w": "서향", "s": "남향", "n": "북향",
+    "se": "남동향", "sw": "남서향", "ne": "북동향", "nw": "북서향",
+}
+BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz"
 
 
-def geocode_kakao(REST_API_KEY=None, df=None, addr_col="addr", delay=0.1):
-    """
-    데이터프레임의 주소 컬럼을 일괄 지오코딩하여 lat_y, long_x 컬럼을 추가하는 함수
+# ---------- URL 파싱 ----------
 
-    Parameters
-    ----------
-    REST_API_KEY : str
-        카카오 REST API 키
-    df : pandas.DataFrame
-        주소 컬럼(addr_col)이 포함된 데이터프레임
-    addr_col : str, optional
-        주소가 담긴 컬럼명 (기본값: 'addr')
-    delay : float, optional
-        API 호출 간 대기 시간(초). 기본값 0.1초 (과호출 방지)
+def _extract_apt_hash(addr: str) -> str:
+    m = re.search(r"/apt/([^/?#]+)", addr)
+    if not m:
+        raise ValueError(f"addr에서 aptHash를 찾을 수 없습니다: {addr}")
+    return m.group(1)
 
-    Returns
-    -------
-    pandas.DataFrame
-        lat_y(위도), long_x(경도) 컬럼이 추가된 데이터프레임
 
-    Examples
-    --------
-    사용 예시:
+# ---------- geohash (표준 공개 알고리즘) ----------
 
-        from geocode_kakao import geocode_kakao
-        import pandas as pd
-
-        my_kakao_rest = 'YOUR_KAKAO_REST_API_KEY'
-
-        df = pd.read_csv('your_data.csv')
-        df = pd.read_excel('파일명.xlsx')
-        # df 에는 반드시 'addr' 컬럼이 있어야 합니다.
-        # 컬럼명이 다를 경우: geocode_kakao(key, df, addr_col='주소컬럼명')
-
-        result_df = geocode_kakao(my_kakao_rest, df)
-        print(result_df[['addr', 'lat_y', 'long_x']])
-
-        result_df.to_csv('result.csv', index=False, encoding='utf-8-sig')
-    """
-
-    # ── 인자 없이 호출 시 사용법 출력 ──────────────────────────────────────────
-    if REST_API_KEY is None:
-        print("""
- ┌─────────────────────────────────────────────────────────────┐
- │              geocode_kakao() 사용법                            │
- └─────────────────────────────────────────────────────────────┘
-
- 필요 라이브러리: requests, pandas
-   # pip install requests pandas
-
- ── 기본 사용법 ──────────────────────────────────────────────
-
- from py412 import geocode_kakao
- from py412 import files22
- import pandas as pd
-
- df=files22()
- 
- my_kakao_rest = 'SHIMBIRO98-5439f3d7eef2c504d3f7dad5c5d7a610'   
- df['번지'] = df['번지'].str.replace(r'0?([0-9]+)월 0?([0-9]+)일', r'\1-\2', regex=True)
- df['addr'] = df['시군구'] + ' ' + df['번지']
-
- result_df = geocode_kakao(my_kakao_rest, df)
- result_df.to_csv('result.csv', index=False, encoding='utf-8-sig')
-
- ── 특정 지역 필터링 ──────────────────────────
- f = df[df['시군구'].str.contains('경기도 성남시 중원구 상대원동')].copy()
- 
- ── 컬럼명이 'addr'이 아닐 경우. 컬럼명이 '주소'일 경우 ────────────────────────
- result_df = geocode_kakao(my_kakao_rest, df, addr_col='주소')
-
- ── API 호출 간격 조정 (기본 0.1초) ──────────────────────────
-
- result_df = geocode_kakao(my_kakao_rest, df, delay=0.3)
-
- ── 반환값 ───────────────────────────────────────────────────
- lat_y  : 위도 (y좌표)
- long_x : 경도 (x좌표)
- 좌표를 찾지 못한 행은 None으로 채워집니다.
-
- ── 카카오 REST API 키 발급 ──────────────────────────────────
-
- https://developers.kakao.com/ 에서 애플리케이션 생성 후
- # my_kakao_rest = 'SHIMBIRO98-5439f3d7eef2c504d3f7dad5c5d7a610'   
-
- ── 참고 데이터 출처 ─────────────────────────────────────────
-
- # 국토정보플랫폼     : https://map.ngii.go.kr/
- # 환경공간정보서비스 : https://egis.me.go.kr/
- # 실거래가공개시스템 : https://rt.molit.go.kr/
- # KB통계            : https://kbland.kr/
- # 콤파스            : https://compas.lh.or.kr/
-        """)
-        return None
-
-    # ── 데이터프레임 없으면 종료 ───────────────────────────────────────────────
-    if df is None:
-        print("[오류] df 인자가 필요합니다. 데이터프레임을 전달하세요.")
-        return None
-
-    # ── addr 컬럼 존재 확인 ────────────────────────────────────────────────────
-    if addr_col not in df.columns:
-        print(f"[오류] 데이터프레임에 '{addr_col}' 컬럼이 없습니다.")
-        print(f"       현재 컬럼 목록: {list(df.columns)}")
-        print(f"       addr_col 인자로 올바른 컬럼명을 지정하세요.")
-        return None
-
-    result = df.copy()
-    result["lat_y"] = None
-    result["long_x"] = None
-
-    total = len(result)
-    success = 0
-    fail = 0
-
-    print(f"[시작] 총 {total}개 주소 지오코딩을 시작합니다...\n")
-
-    for i, (idx, row) in enumerate(result.iterrows(), start=1):
-        addr = row[addr_col]
-
-        # 주소가 비어있으면 스킵
-        if not addr or (isinstance(addr, float)):
-            print(f"  [{i:>5}/{total}] 건너뜀 (주소 없음) — 인덱스 {idx}")
-            fail += 1
-            continue
-
-        try:
-            coords = geocode_df(REST_API_KEY, addr)
-
-            if coords and len(coords) >= 2:
-                result.at[idx, "long_x"] = coords[0]
-                result.at[idx, "lat_y"] = coords[1]
-                print(f"  [{i:>5}/{total}] ✔ ({coords[1]}, {coords[0]})  ← {addr}")
-                success += 1
+def _geohash_encode(lat: float, lon: float, precision: int = 6) -> str:
+    lat_range = [-90.0, 90.0]
+    lon_range = [-180.0, 180.0]
+    geohash, bit, ch, even = [], 0, 0, True
+    while len(geohash) < precision:
+        if even:
+            mid = (lon_range[0] + lon_range[1]) / 2
+            if lon > mid:
+                ch |= 1 << (4 - bit)
+                lon_range[0] = mid
             else:
-                print(f"  [{i:>5}/{total}] ✘ 좌표 없음  ← {addr}")
-                fail += 1
+                lon_range[1] = mid
+        else:
+            mid = (lat_range[0] + lat_range[1]) / 2
+            if lat > mid:
+                ch |= 1 << (4 - bit)
+                lat_range[0] = mid
+            else:
+                lat_range[1] = mid
+        even = not even
+        if bit < 4:
+            bit += 1
+        else:
+            geohash.append(BASE32[ch])
+            bit, ch = 0, 0
+    return "".join(geohash)
 
-        except Exception as e:
-            print(f"  [{i:>5}/{total}] ✘ 오류: {e}  ← {addr}")
-            fail += 1
 
-        # API 과호출 방지 대기
-        if delay > 0:
-            time.sleep(delay)
+def _geohash_decode_bbox(geohash: str):
+    lat_range, lon_range, even = [-90.0, 90.0], [-180.0, 180.0], True
+    for c in geohash:
+        cd = BASE32.index(c)
+        for mask in (16, 8, 4, 2, 1):
+            bit = 1 if cd & mask else 0
+            if even:
+                mid = (lon_range[0] + lon_range[1]) / 2
+                lon_range[0 if bit else 1] = mid
+            else:
+                mid = (lat_range[0] + lat_range[1]) / 2
+                lat_range[0 if bit else 1] = mid
+            even = not even
+    return lat_range, lon_range
 
-    print(f"""
-[완료] 지오코딩 결과
-  - 전체  : {total}건
-  - 성공  : {success}건
-  - 실패  : {fail}건
-    """)
 
-    return result
+def _geohashes_around(lat: float, lon: float, precision: int = 6, rings: int = 1) -> list:
+    center_hash = _geohash_encode(lat, lon, precision)
+    lat_range, lon_range = _geohash_decode_bbox(center_hash)
+    tile_h, tile_w = lat_range[1] - lat_range[0], lon_range[1] - lon_range[0]
+    clat, clon = (lat_range[0] + lat_range[1]) / 2, (lon_range[0] + lon_range[1]) / 2
+    hashes = set()
+    for dy in range(-rings, rings + 1):
+        for dx in range(-rings, rings + 1):
+            nlat = max(-90.0, min(90.0, clat + dy * tile_h))
+            nlon = max(-180.0, min(180.0, clon + dx * tile_w))
+            hashes.add(_geohash_encode(nlat, nlon, precision))
+    return sorted(hashes)
 
+
+# ---------- hogangnono API ----------
+
+def _new_session() -> requests.Session:
+    s = requests.Session(impersonate="safari")
+    s.get("https://hogangnono.com/items", timeout=30)  # 익명 쿠키 발급
+    return s
+
+
+def _fetch_apt_detail(session: requests.Session, apt_hash: str, page_url: str) -> dict:
+    r = session.get(page_url, timeout=30)
+    r.raise_for_status()
+    m = re.search(r'<script id="__HGNN_DATA__" type="application/json">(.*?)</script>', r.text, re.S)
+    if not m:
+        raise RuntimeError("페이지에서 __HGNN_DATA__를 찾을 수 없습니다.")
+    detail = json.loads(m.group(1))["altState"]["AptStore"]["detail"]
+    zigbang_ids = detail.get("zigbangIds") or []
+    return {
+        "name": detail.get("name"),
+        "jibun_addr": detail.get("address"),
+        "road_addr": detail.get("road_address"),
+        "lat": detail.get("lat"),
+        "lng": detail.get("lng"),
+        "danji_ids": {int(z) for z in zigbang_ids if str(z).isdigit()},
+    }
+
+
+def _fetch_markers(session: requests.Session, geohashes: list, property_type: str = "apt") -> list:
+    markers, seen = [], set()
+    for gh in geohashes:
+        r = session.get(
+            "https://hogangnono.com/api/v2/items/markers",
+            params={"propertyType": property_type, "geohash": gh},
+            headers={"Referer": "https://hogangnono.com/items", "Accept": "application/json"},
+            timeout=30,
+        )
+        r.raise_for_status()
+        payload = r.json()
+        if payload.get("status") != "success":
+            print(f"  경고: geohash={gh} 마커 응답 오류: {payload}", file=sys.stderr)
+            continue
+        for mk in payload["data"]["markers"]:
+            key = (mk["itemId"], mk["tradeType"])
+            if key in seen:
+                continue
+            seen.add(key)
+            markers.append(mk)
+        time.sleep(0.15)
+    return markers
+
+
+def _fetch_item_details(session: requests.Session, markers: list) -> dict:
+    """(areaHoId, tradeType_str) -> 상세정보 dict. 최대 15개씩 배치 조회."""
+    details = {}
+    batch_size = 15
+    for i in range(0, len(markers), batch_size):
+        batch = markers[i:i + batch_size]
+        catalogs = [{"itemId": m["itemId"], "tradeType": m["tradeType"]} for m in batch]
+        r = session.post(
+            "https://hogangnono.com/api/v2/items/apt/list",
+            json={"catalogs": catalogs},
+            headers={
+                "Referer": "https://hogangnono.com/items",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        )
+        r.raise_for_status()
+        payload = r.json()
+        if payload.get("status") != "success":
+            print(f"  경고: apt/list 배치 {i} 응답 오류: {payload}", file=sys.stderr)
+            continue
+        for it in payload["data"]["items"]:
+            # 상세 응답의 최상위 itemId는 실제 매물 내부ID로 마커의 itemId와 다르다.
+            # 마커와 매칭하려면 반드시 areaHoId를 키로 써야 한다.
+            details[(it["areaHoId"], it["tradeType"])] = it
+        time.sleep(0.2)
+    return details
+
+
+CSV_FIELDS = [
+    "areaHoId", "실매물ID", "거래유형", "단지명", "동", "층",
+    "전용면적(m2)", "공급면적(m2)", "평형", "보증금/매매가(만원)", "월세(만원)",
+    "매물설명", "중개사무소", "지번주소", "도로명주소", "위도", "경도",
+]
+
+
+def _to_row(mk: dict, it: dict) -> dict:
+    sub_items = it.get("items") or [{}]
+    return {
+        "areaHoId": mk["itemId"],
+        "실매물ID": it.get("itemId"),
+        "거래유형": TRADE_TYPE_LABEL.get(mk["tradeType"], mk["tradeType"]),
+        "단지명": it.get("areaDanjiName"),
+        "동": it.get("dong"),
+        "층": it.get("floor"),
+        "전용면적(m2)": it.get("sizeM2"),
+        "공급면적(m2)": it.get("sizeContractM2"),
+        "평형": (it.get("roomTypeTitle") or {}).get("p"),
+        "보증금/매매가(만원)": it.get("depositMin"),
+        "월세(만원)": it.get("rentMin"),
+        "매물설명": it.get("itemTitle"),
+        "중개사무소": sub_items[0].get("agentName") if sub_items else None,
+        "지번주소": None,  # 아래에서 apt_info 기준으로 채움
+        "도로명주소": None,
+        "위도": mk["lat"],
+        "경도": mk["lng"],
+    }
+
+
+# ---------- 공개 함수 ----------
+
+def get_hogangnono_items(addr: str, out_csv: str | None = None, max_rings: int = 3) -> list:
+    """
+    addr: 호갱노노 아파트 단지 페이지 URL (예: "https://hogangnono.com/apt/6ipa0/item-catalog")
+    out_csv: 지정 시 해당 경로에 CSV로도 저장. None이면 저장 안 함.
+    max_rings: 단지 좌표 주변 geohash 타일 탐색 반경을 1(3x3)부터 시작해
+               매물을 못 찾으면 이 값까지 단계적으로 넓혀가며 재탐색한다.
+
+    반환값: 매물 정보 dict의 리스트 (동/층/면적/가격/설명/중개사무소/단지주소/좌표 등 포함)
+    """
+    apt_hash = _extract_apt_hash(addr)
+    page_url = f"https://hogangnono.com/apt/{apt_hash}/0"
+
+    session = _new_session()
+
+    apt_info = _fetch_apt_detail(session, apt_hash, page_url)
+    print(f"단지명: {apt_info['name']} / 주소: {apt_info['jibun_addr']} ({apt_info['road_addr']}) "
+          f"/ 대표좌표: {apt_info['lat']}, {apt_info['lng']} / danji_ids: {apt_info['danji_ids']}",
+          file=sys.stderr)
+
+    if apt_info["lat"] is None or apt_info["lng"] is None:
+        raise RuntimeError("단지 좌표를 확인할 수 없습니다.")
+
+    matched_rows = []
+    for rings in range(1, max_rings + 1):
+        geohashes = _geohashes_around(apt_info["lat"], apt_info["lng"], precision=6, rings=rings)
+        markers = _fetch_markers(session, geohashes)
+        details = _fetch_item_details(session, markers)
+
+        matched_rows = []
+        for mk in markers:
+            it = details.get((mk["itemId"], mk["tradeType"]))
+            if not it:
+                continue
+            if apt_info["danji_ids"] and it.get("areaDanjiId") not in apt_info["danji_ids"]:
+                continue
+            row = _to_row(mk, it)
+            row["지번주소"] = apt_info["jibun_addr"]
+            row["도로명주소"] = apt_info["road_addr"]
+            matched_rows.append(row)
+
+        print(f"rings={rings}: 마커 {len(markers)}건 중 이 단지 매물 {len(matched_rows)}건", file=sys.stderr)
+        if matched_rows or not apt_info["danji_ids"]:
+            break
+
+    if out_csv:
+        with open(out_csv, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(matched_rows)
+        print(f"CSV 저장 완료: {out_csv}", file=sys.stderr)
+
+    return matched_rows
+
+
+if __name__ == "__main__":
+    addr = sys.argv[1] if len(sys.argv) > 1 else "https://hogangnono.com/apt/6ipa0/item-catalog"
+    out_csv = sys.argv[2] if len(sys.argv) > 2 else None
+    items = get_hogangnono_items(addr, out_csv)
+    print(json.dumps(items[:5], ensure_ascii=False, indent=2))
