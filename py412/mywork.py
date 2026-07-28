@@ -4,12 +4,17 @@ def mywork():
     옵션에 대한 가이드 코드를 콘솔에 출력하는 함수입니다.
     """
     guide_text = """
-from py412 import class_col, comp22, cor22, cor33, del22, desc22, e_logit, files22, geocode_kakao, get_geo, lm, logit, mkcsv, mkdum, mkxlsx, mywork, recode, sel22, selvar, pipe22, filter22, select22
+from py412 import class_col, comp22, cor22, cor33, del22, desc22, e_logit, files22, geocode_kakao, get_geo, lm, logit, mkcsv, mkdum, mkxlsx, mywork, recode, sel22, selvar, pipe22, filter22, select22, get_hogangnono_items
 import py412 as py
 import pandas as pd
 import numpy as np
 import statsmodels.formula.api as smf
 import inspect
+
+# HogangNONO data ---------
+addr="https://hogangnono.com/apt/6i404/item-catalog"
+out="myfuntest.csv"
+get_hogangnono_items(addr, out)
 
 # 모듈 로드 후 inspect 실행
 print(inspect.getsource(py.get_geo))
