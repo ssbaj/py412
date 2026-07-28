@@ -1,258 +1,235 @@
-
-import csv
-import json
-import re
-import sys
+import requests
 import time
 
-from curl_cffi import requests
 
-TRADE_TYPE_LABEL = {"trade": "¸Å¸Å", "charter": "Àü¼¼", "rental": "¿ù¼¼", "short": "´Ü±â"}
-DIRECTION_LABEL = {
-    "e": "µ¿Çâ", "w": "¼­Çâ", "s": "³²Çâ", "n": "ºÏÇâ",
-    "se": "³²µ¿Çâ", "sw": "³²¼­Çâ", "ne": "ºÏµ¿Çâ", "nw": "ºÏ¼­Çâ",
-}
-BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz"
-
-
-# ---------- URL ÆÄ½Ì ----------
-
-def _extract_apt_hash(addr: str) -> str:
-    m = re.search(r"/apt/([^/?#]+)", addr)
-    if not m:
-        raise ValueError(f"addr¿¡¼­ aptHash¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù: {addr}")
-    return m.group(1)
-
-
-# ---------- geohash (Ç¥ÁØ °ø°³ ¾Ë°í¸®Áò) ----------
-
-def _geohash_encode(lat: float, lon: float, precision: int = 6) -> str:
-    lat_range = [-90.0, 90.0]
-    lon_range = [-180.0, 180.0]
-    geohash, bit, ch, even = [], 0, 0, True
-    while len(geohash) < precision:
-        if even:
-            mid = (lon_range[0] + lon_range[1]) / 2
-            if lon > mid:
-                ch |= 1 << (4 - bit)
-                lon_range[0] = mid
-            else:
-                lon_range[1] = mid
-        else:
-            mid = (lat_range[0] + lat_range[1]) / 2
-            if lat > mid:
-                ch |= 1 << (4 - bit)
-                lat_range[0] = mid
-            else:
-                lat_range[1] = mid
-        even = not even
-        if bit < 4:
-            bit += 1
-        else:
-            geohash.append(BASE32[ch])
-            bit, ch = 0, 0
-    return "".join(geohash)
-
-
-def _geohash_decode_bbox(geohash: str):
-    lat_range, lon_range, even = [-90.0, 90.0], [-180.0, 180.0], True
-    for c in geohash:
-        cd = BASE32.index(c)
-        for mask in (16, 8, 4, 2, 1):
-            bit = 1 if cd & mask else 0
-            if even:
-                mid = (lon_range[0] + lon_range[1]) / 2
-                lon_range[0 if bit else 1] = mid
-            else:
-                mid = (lat_range[0] + lat_range[1]) / 2
-                lat_range[0 if bit else 1] = mid
-            even = not even
-    return lat_range, lon_range
-
-
-def _geohashes_around(lat: float, lon: float, precision: int = 6, rings: int = 1) -> list:
-    center_hash = _geohash_encode(lat, lon, precision)
-    lat_range, lon_range = _geohash_decode_bbox(center_hash)
-    tile_h, tile_w = lat_range[1] - lat_range[0], lon_range[1] - lon_range[0]
-    clat, clon = (lat_range[0] + lat_range[1]) / 2, (lon_range[0] + lon_range[1]) / 2
-    hashes = set()
-    for dy in range(-rings, rings + 1):
-        for dx in range(-rings, rings + 1):
-            nlat = max(-90.0, min(90.0, clat + dy * tile_h))
-            nlon = max(-180.0, min(180.0, clon + dx * tile_w))
-            hashes.add(_geohash_encode(nlat, nlon, precision))
-    return sorted(hashes)
-
-
-# ---------- hogangnono API ----------
-
-def _new_session() -> requests.Session:
-    s = requests.Session(impersonate="safari")
-    s.get("https://hogangnono.com/items", timeout=30)  # ÀÍ¸í ÄíÅ° ¹ß±Þ
-    return s
-
-
-def _fetch_apt_detail(session: requests.Session, apt_hash: str, page_url: str) -> dict:
-    r = session.get(page_url, timeout=30)
-    r.raise_for_status()
-    m = re.search(r'<script id="__HGNN_DATA__" type="application/json">(.*?)</script>', r.text, re.S)
-    if not m:
-        raise RuntimeError("ÆäÀÌÁö¿¡¼­ __HGNN_DATA__¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù.")
-    detail = json.loads(m.group(1))["altState"]["AptStore"]["detail"]
-    zigbang_ids = detail.get("zigbangIds") or []
-    return {
-        "name": detail.get("name"),
-        "jibun_addr": detail.get("address"),
-        "road_addr": detail.get("road_address"),
-        "lat": detail.get("lat"),
-        "lng": detail.get("lng"),
-        "danji_ids": {int(z) for z in zigbang_ids if str(z).isdigit()},
-    }
-
-
-def _fetch_markers(session: requests.Session, geohashes: list, property_type: str = "apt") -> list:
-    markers, seen = [], set()
-    for gh in geohashes:
-        r = session.get(
-            "https://hogangnono.com/api/v2/items/markers",
-            params={"propertyType": property_type, "geohash": gh},
-            headers={"Referer": "https://hogangnono.com/items", "Accept": "application/json"},
-            timeout=30,
-        )
-        r.raise_for_status()
-        payload = r.json()
-        if payload.get("status") != "success":
-            print(f"  °æ°í: geohash={gh} ¸¶Ä¿ ÀÀ´ä ¿À·ù: {payload}", file=sys.stderr)
-            continue
-        for mk in payload["data"]["markers"]:
-            key = (mk["itemId"], mk["tradeType"])
-            if key in seen:
-                continue
-            seen.add(key)
-            markers.append(mk)
-        time.sleep(0.15)
-    return markers
-
-
-def _fetch_item_details(session: requests.Session, markers: list) -> dict:
-    """(areaHoId, tradeType_str) -> »ó¼¼Á¤º¸ dict. ÃÖ´ë 15°³¾¿ ¹èÄ¡ Á¶È¸."""
-    details = {}
-    batch_size = 15
-    for i in range(0, len(markers), batch_size):
-        batch = markers[i:i + batch_size]
-        catalogs = [{"itemId": m["itemId"], "tradeType": m["tradeType"]} for m in batch]
-        r = session.post(
-            "https://hogangnono.com/api/v2/items/apt/list",
-            json={"catalogs": catalogs},
-            headers={
-                "Referer": "https://hogangnono.com/items",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
-            timeout=30,
-        )
-        r.raise_for_status()
-        payload = r.json()
-        if payload.get("status") != "success":
-            print(f"  °æ°í: apt/list ¹èÄ¡ {i} ÀÀ´ä ¿À·ù: {payload}", file=sys.stderr)
-            continue
-        for it in payload["data"]["items"]:
-            # »ó¼¼ ÀÀ´äÀÇ ÃÖ»óÀ§ itemId´Â ½ÇÁ¦ ¸Å¹° ³»ºÎID·Î ¸¶Ä¿ÀÇ itemId¿Í ´Ù¸£´Ù.
-            # ¸¶Ä¿¿Í ¸ÅÄªÇÏ·Á¸é ¹Ýµå½Ã areaHoId¸¦ Å°·Î ½á¾ß ÇÑ´Ù.
-            details[(it["areaHoId"], it["tradeType"])] = it
-        time.sleep(0.2)
-    return details
-
-
-CSV_FIELDS = [
-    "areaHoId", "½Ç¸Å¹°ID", "°Å·¡À¯Çü", "´ÜÁö¸í", "µ¿", "Ãþ",
-    "Àü¿ë¸éÀû(m2)", "°ø±Þ¸éÀû(m2)", "ÆòÇü", "º¸Áõ±Ý/¸Å¸Å°¡(¸¸¿ø)", "¿ù¼¼(¸¸¿ø)",
-    "¸Å¹°¼³¸í", "Áß°³»ç¹«¼Ò", "Áö¹øÁÖ¼Ò", "µµ·Î¸íÁÖ¼Ò", "À§µµ", "°æµµ",
-]
-
-
-def _to_row(mk: dict, it: dict) -> dict:
-    sub_items = it.get("items") or [{}]
-    return {
-        "areaHoId": mk["itemId"],
-        "½Ç¸Å¹°ID": it.get("itemId"),
-        "°Å·¡À¯Çü": TRADE_TYPE_LABEL.get(mk["tradeType"], mk["tradeType"]),
-        "´ÜÁö¸í": it.get("areaDanjiName"),
-        "µ¿": it.get("dong"),
-        "Ãþ": it.get("floor"),
-        "Àü¿ë¸éÀû(m2)": it.get("sizeM2"),
-        "°ø±Þ¸éÀû(m2)": it.get("sizeContractM2"),
-        "ÆòÇü": (it.get("roomTypeTitle") or {}).get("p"),
-        "º¸Áõ±Ý/¸Å¸Å°¡(¸¸¿ø)": it.get("depositMin"),
-        "¿ù¼¼(¸¸¿ø)": it.get("rentMin"),
-        "¸Å¹°¼³¸í": it.get("itemTitle"),
-        "Áß°³»ç¹«¼Ò": sub_items[0].get("agentName") if sub_items else None,
-        "Áö¹øÁÖ¼Ò": None,  # ¾Æ·¡¿¡¼­ apt_info ±âÁØÀ¸·Î Ã¤¿ò
-        "µµ·Î¸íÁÖ¼Ò": None,
-        "À§µµ": mk["lat"],
-        "°æµµ": mk["lng"],
-    }
-
-
-# ---------- °ø°³ ÇÔ¼ö ----------
-
-def get_hogangnono_items(addr: str, out_csv: str | None = None, max_rings: int = 3) -> list:
+def geocode_df(REST_API_KEY=None, address=None):
     """
-    addr: È£°»³ë³ë ¾ÆÆÄÆ® ´ÜÁö ÆäÀÌÁö URL (¿¹: "https://hogangnono.com/apt/6ipa0/item-catalog")
-    out_csv: ÁöÁ¤ ½Ã ÇØ´ç °æ·Î¿¡ CSV·Îµµ ÀúÀå. NoneÀÌ¸é ÀúÀå ¾È ÇÔ.
-    max_rings: ´ÜÁö ÁÂÇ¥ ÁÖº¯ geohash Å¸ÀÏ Å½»ö ¹Ý°æÀ» 1(3x3)ºÎÅÍ ½ÃÀÛÇØ
-               ¸Å¹°À» ¸ø Ã£À¸¸é ÀÌ °ª±îÁö ´Ü°èÀûÀ¸·Î ³ÐÇô°¡¸ç ÀçÅ½»öÇÑ´Ù.
-
-    ¹ÝÈ¯°ª: ¸Å¹° Á¤º¸ dictÀÇ ¸®½ºÆ® (µ¿/Ãþ/¸éÀû/°¡°Ý/¼³¸í/Áß°³»ç¹«¼Ò/´ÜÁöÁÖ¼Ò/ÁÂÇ¥ µî Æ÷ÇÔ)
+    ì¹´ì¹´ì˜¤ REST APIë¥¼ ì´ìš©í•œ ì£¼ì†Œ -> ìœ„ê²½ë„ ë³€í™˜ í•¨ìˆ˜
+    
+    Parameters
+    ----------
+    REST_API_KEY : str
+        ì¹´ì¹´ì˜¤ REST API í‚¤
+    address : str
+        ì§€ë²ˆ ì£¼ì†Œ ë˜ëŠ” ë„ë¡œëª… ì£¼ì†Œ
+    
+    Returns
+    -------
+    list : [ìœ„ë„(y), ê²½ë„(x)] ë˜ëŠ” None
     """
-    apt_hash = _extract_apt_hash(addr)
-    page_url = f"https://hogangnono.com/apt/{apt_hash}/0"
+    if REST_API_KEY is None:
+        print("""
+ í•„ìš” ë¼ì´ë¸ŒëŸ¬ë¦¬: requests, pandas
+   # pip install requests pandas
 
-    session = _new_session()
+ # êµ­í† ì •ë³´í”Œëž«í¼     : https://map.ngii.go.kr/
+ # í™˜ê²½ê³µê°„ì •ë³´ì„œë¹„ìŠ¤ : https://egis.me.go.kr/
+ # ì‹¤ê±°ëž˜ê°€ê³µê°œì‹œìŠ¤í…œ : https://rt.molit.go.kr/
+ # KBí†µê³„            : https://kbland.kr/
+ # ì½¤íŒŒìŠ¤            : https://compas.lh.or.kr/
 
-    apt_info = _fetch_apt_detail(session, apt_hash, page_url)
-    print(f"´ÜÁö¸í: {apt_info['name']} / ÁÖ¼Ò: {apt_info['jibun_addr']} ({apt_info['road_addr']}) "
-          f"/ ´ëÇ¥ÁÂÇ¥: {apt_info['lat']}, {apt_info['lng']} / danji_ids: {apt_info['danji_ids']}",
-          file=sys.stderr)
+ -----------------------------------------------
+ ì‚¬ìš© ì˜ˆì‹œ:
 
-    if apt_info["lat"] is None or apt_info["lng"] is None:
-        raise RuntimeError("´ÜÁö ÁÂÇ¥¸¦ È®ÀÎÇÒ ¼ö ¾ø½À´Ï´Ù.")
+ from geocode_kakao import geocode_df, geocode_kakao
+ import pandas as pd
 
-    matched_rows = []
-    for rings in range(1, max_rings + 1):
-        geohashes = _geohashes_around(apt_info["lat"], apt_info["lng"], precision=6, rings=rings)
-        markers = _fetch_markers(session, geohashes)
-        details = _fetch_item_details(session, markers)
+ my_kakao_rest = 'YOUR_KAKAO_REST_API_KEY'
 
-        matched_rows = []
-        for mk in markers:
-            it = details.get((mk["itemId"], mk["tradeType"]))
-            if not it:
-                continue
-            if apt_info["danji_ids"] and it.get("areaDanjiId") not in apt_info["danji_ids"]:
-                continue
-            row = _to_row(mk, it)
-            row["Áö¹øÁÖ¼Ò"] = apt_info["jibun_addr"]
-            row["µµ·Î¸íÁÖ¼Ò"] = apt_info["road_addr"]
-            matched_rows.append(row)
+ df = files22()
+ df = pd.read_csv('YOUR_DATA_SET.csv')
+ df = pd.read_excel('íŒŒì¼ëª….xlsx')
+ # df ì—ëŠ” ë°˜ë“œì‹œ 'addr' ì»¬ëŸ¼ì´ ìžˆì–´ì•¼ í•©ë‹ˆë‹¤.
 
-        print(f"rings={rings}: ¸¶Ä¿ {len(markers)}°Ç Áß ÀÌ ´ÜÁö ¸Å¹° {len(matched_rows)}°Ç", file=sys.stderr)
-        if matched_rows or not apt_info["danji_ids"]:
-            break
+ result_df = geocode_kakao(my_kakao_rest, df)
+ result_df.to_csv('result.csv', index=False, encoding='utf-8-sig')
+ -----------------------------------------------
+        """)
+        return None
 
-    if out_csv:
-        with open(out_csv, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
-            writer.writeheader()
-            writer.writerows(matched_rows)
-        print(f"CSV ÀúÀå ¿Ï·á: {out_csv}", file=sys.stderr)
+    if address is None:
+        print("[ì˜¤ë¥˜] address ì¸ìžê°€ í•„ìš”í•©ë‹ˆë‹¤.")
+        return None
 
-    return matched_rows
+    if isinstance(address, list):
+        address = address[0]
+
+    url = "https://dapi.kakao.com/v2/local/search/address.json"
+    headers = {"Authorization": f"KakaoAK {REST_API_KEY}"}
+    params = {"query": address}
+
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        documents = data.get("documents", [])
+        if not documents:
+            print(f"[ê²°ê³¼ ì—†ìŒ] ì£¼ì†Œë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤: {address}")
+            return None
+
+        long_x = documents[0].get("x")  # ê²½ë„
+        lat_y = documents[0].get("y")   # ìœ„ë„
+
+        return [long_x, lat_y]
+
+    except requests.exceptions.RequestException as e:
+        print(f"[API ì˜¤ë¥˜] {e}")
+        return None
 
 
-if __name__ == "__main__":
-    addr = sys.argv[1] if len(sys.argv) > 1 else "https://hogangnono.com/apt/6ipa0/item-catalog"
-    out_csv = sys.argv[2] if len(sys.argv) > 2 else None
-    items = get_hogangnono_items(addr, out_csv)
-    print(json.dumps(items[:5], ensure_ascii=False, indent=2))
+def geocode_kakao(REST_API_KEY=None, df=None, addr_col="addr", delay=0.1):
+    """
+    ë°ì´í„°í”„ë ˆìž„ì˜ ì£¼ì†Œ ì»¬ëŸ¼ì„ ì¼ê´„ ì§€ì˜¤ì½”ë”©í•˜ì—¬ lat_y, long_x ì»¬ëŸ¼ì„ ì¶”ê°€í•˜ëŠ” í•¨ìˆ˜
+
+    Parameters
+    ----------
+    REST_API_KEY : str
+        ì¹´ì¹´ì˜¤ REST API í‚¤
+    df : pandas.DataFrame
+        ì£¼ì†Œ ì»¬ëŸ¼(addr_col)ì´ í¬í•¨ëœ ë°ì´í„°í”„ë ˆìž„
+    addr_col : str, optional
+        ì£¼ì†Œê°€ ë‹´ê¸´ ì»¬ëŸ¼ëª… (ê¸°ë³¸ê°’: 'addr')
+    delay : float, optional
+        API í˜¸ì¶œ ê°„ ëŒ€ê¸° ì‹œê°„(ì´ˆ). ê¸°ë³¸ê°’ 0.1ì´ˆ (ê³¼í˜¸ì¶œ ë°©ì§€)
+
+    Returns
+    -------
+    pandas.DataFrame
+        lat_y(ìœ„ë„), long_x(ê²½ë„) ì»¬ëŸ¼ì´ ì¶”ê°€ëœ ë°ì´í„°í”„ë ˆìž„
+
+    Examples
+    --------
+    ì‚¬ìš© ì˜ˆì‹œ:
+
+        from geocode_kakao import geocode_kakao
+        import pandas as pd
+
+        my_kakao_rest = 'YOUR_KAKAO_REST_API_KEY'
+
+        df = pd.read_csv('your_data.csv')
+        df = pd.read_excel('íŒŒì¼ëª….xlsx')
+        # df ì—ëŠ” ë°˜ë“œì‹œ 'addr' ì»¬ëŸ¼ì´ ìžˆì–´ì•¼ í•©ë‹ˆë‹¤.
+        # ì»¬ëŸ¼ëª…ì´ ë‹¤ë¥¼ ê²½ìš°: geocode_kakao(key, df, addr_col='ì£¼ì†Œì»¬ëŸ¼ëª…')
+
+        result_df = geocode_kakao(my_kakao_rest, df)
+        print(result_df[['addr', 'lat_y', 'long_x']])
+
+        result_df.to_csv('result.csv', index=False, encoding='utf-8-sig')
+    """
+
+    # â”€â”€ ì¸ìž ì—†ì´ í˜¸ì¶œ ì‹œ ì‚¬ìš©ë²• ì¶œë ¥ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if REST_API_KEY is None:
+        print("""
+ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ â”‚              geocode_kakao() ì‚¬ìš©ë²•                            â”‚
+ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+
+ í•„ìš” ë¼ì´ë¸ŒëŸ¬ë¦¬: requests, pandas
+   # pip install requests pandas
+
+ â”€â”€ ê¸°ë³¸ ì‚¬ìš©ë²• â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+ from py412 import geocode_kakao
+ from py412 import files22
+ import pandas as pd
+
+ df=files22()
+ 
+ my_kakao_rest = 'SHIMBIRO98-5439f3d7eef2c504d3f7dad5c5d7a610'   
+ df['ë²ˆì§€'] = df['ë²ˆì§€'].str.replace(r'0?([0-9]+)ì›” 0?([0-9]+)ì¼', r'\1-\2', regex=True)
+ df['addr'] = df['ì‹œêµ°êµ¬'] + ' ' + df['ë²ˆì§€']
+
+ result_df = geocode_kakao(my_kakao_rest, df)
+ result_df.to_csv('result.csv', index=False, encoding='utf-8-sig')
+
+ â”€â”€ íŠ¹ì • ì§€ì—­ í•„í„°ë§ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ f = df[df['ì‹œêµ°êµ¬'].str.contains('ê²½ê¸°ë„ ì„±ë‚¨ì‹œ ì¤‘ì›êµ¬ ìƒëŒ€ì›ë™')].copy()
+ 
+ â”€â”€ ì»¬ëŸ¼ëª…ì´ 'addr'ì´ ì•„ë‹ ê²½ìš°. ì»¬ëŸ¼ëª…ì´ 'ì£¼ì†Œ'ì¼ ê²½ìš° â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ result_df = geocode_kakao(my_kakao_rest, df, addr_col='ì£¼ì†Œ')
+
+ â”€â”€ API í˜¸ì¶œ ê°„ê²© ì¡°ì • (ê¸°ë³¸ 0.1ì´ˆ) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+ result_df = geocode_kakao(my_kakao_rest, df, delay=0.3)
+
+ â”€â”€ ë°˜í™˜ê°’ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ lat_y  : ìœ„ë„ (yì¢Œí‘œ)
+ long_x : ê²½ë„ (xì¢Œí‘œ)
+ ì¢Œí‘œë¥¼ ì°¾ì§€ ëª»í•œ í–‰ì€ Noneìœ¼ë¡œ ì±„ì›Œì§‘ë‹ˆë‹¤.
+
+ â”€â”€ ì¹´ì¹´ì˜¤ REST API í‚¤ ë°œê¸‰ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+ https://developers.kakao.com/ ì—ì„œ ì• í”Œë¦¬ì¼€ì´ì…˜ ìƒì„± í›„
+ # my_kakao_rest = 'SHIMBIRO98-5439f3d7eef2c504d3f7dad5c5d7a610'   
+
+ â”€â”€ ì°¸ê³  ë°ì´í„° ì¶œì²˜ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+ # êµ­í† ì •ë³´í”Œëž«í¼     : https://map.ngii.go.kr/
+ # í™˜ê²½ê³µê°„ì •ë³´ì„œë¹„ìŠ¤ : https://egis.me.go.kr/
+ # ì‹¤ê±°ëž˜ê°€ê³µê°œì‹œìŠ¤í…œ : https://rt.molit.go.kr/
+ # KBí†µê³„            : https://kbland.kr/
+ # ì½¤íŒŒìŠ¤            : https://compas.lh.or.kr/
+        """)
+        return None
+
+    # â”€â”€ ë°ì´í„°í”„ë ˆìž„ ì—†ìœ¼ë©´ ì¢…ë£Œ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if df is None:
+        print("[ì˜¤ë¥˜] df ì¸ìžê°€ í•„ìš”í•©ë‹ˆë‹¤. ë°ì´í„°í”„ë ˆìž„ì„ ì „ë‹¬í•˜ì„¸ìš”.")
+        return None
+
+    # â”€â”€ addr ì»¬ëŸ¼ ì¡´ìž¬ í™•ì¸ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if addr_col not in df.columns:
+        print(f"[ì˜¤ë¥˜] ë°ì´í„°í”„ë ˆìž„ì— '{addr_col}' ì»¬ëŸ¼ì´ ì—†ìŠµë‹ˆë‹¤.")
+        print(f"       í˜„ìž¬ ì»¬ëŸ¼ ëª©ë¡: {list(df.columns)}")
+        print(f"       addr_col ì¸ìžë¡œ ì˜¬ë°”ë¥¸ ì»¬ëŸ¼ëª…ì„ ì§€ì •í•˜ì„¸ìš”.")
+        return None
+
+    result = df.copy()
+    result["lat_y"] = None
+    result["long_x"] = None
+
+    total = len(result)
+    success = 0
+    fail = 0
+
+    print(f"[ì‹œìž‘] ì´ {total}ê°œ ì£¼ì†Œ ì§€ì˜¤ì½”ë”©ì„ ì‹œìž‘í•©ë‹ˆë‹¤...\n")
+
+    for i, (idx, row) in enumerate(result.iterrows(), start=1):
+        addr = row[addr_col]
+
+        # ì£¼ì†Œê°€ ë¹„ì–´ìžˆìœ¼ë©´ ìŠ¤í‚µ
+        if not addr or (isinstance(addr, float)):
+            print(f"  [{i:>5}/{total}] ê±´ë„ˆëœ€ (ì£¼ì†Œ ì—†ìŒ) â€” ì¸ë±ìŠ¤ {idx}")
+            fail += 1
+            continue
+
+        try:
+            coords = geocode_df(REST_API_KEY, addr)
+
+            if coords and len(coords) >= 2:
+                result.at[idx, "long_x"] = coords[0]
+                result.at[idx, "lat_y"] = coords[1]
+                print(f"  [{i:>5}/{total}] âœ” ({coords[1]}, {coords[0]})  â† {addr}")
+                success += 1
+            else:
+                print(f"  [{i:>5}/{total}] âœ˜ ì¢Œí‘œ ì—†ìŒ  â† {addr}")
+                fail += 1
+
+        except Exception as e:
+            print(f"  [{i:>5}/{total}] âœ˜ ì˜¤ë¥˜: {e}  â† {addr}")
+            fail += 1
+
+        # API ê³¼í˜¸ì¶œ ë°©ì§€ ëŒ€ê¸°
+        if delay > 0:
+            time.sleep(delay)
+
+    print(f"""
+[ì™„ë£Œ] ì§€ì˜¤ì½”ë”© ê²°ê³¼
+  - ì „ì²´  : {total}ê±´
+  - ì„±ê³µ  : {success}ê±´
+  - ì‹¤íŒ¨  : {fail}ê±´
+    """)
+
+    return result
 
