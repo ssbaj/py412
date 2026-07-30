@@ -22,3 +22,5 @@ from .sel22 import sel22
 from .select22 import select22
 from .selvar import selvar
 from .get_hogangnono_items import get_hogangnono_items
+from naver_copy import naver_copy
+from naverA import naverA
