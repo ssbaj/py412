@@ -170,3 +170,6 @@ def main():
 if __name__ == "__main__":
     main()
 
+
+naver_copy = main
+
