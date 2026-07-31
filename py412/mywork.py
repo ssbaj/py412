@@ -4,7 +4,7 @@ def mywork():
     옵션에 대한 가이드 코드를 콘솔에 출력하는 함수입니다.
     """
     guide_text = """
-from py412 import class_col, comp22, cor22, cor33, del22, desc22, e_logit, files22, geocode_kakao, get_geo, lm, logit, mkcsv, mkdum, mkxlsx, mywork, recode, sel22, selvar, pipe22, filter22, select22, get_hogangnono_items
+from py412 import class_col, comp22, cor22, cor33, del22, desc22, e_logit, files22, filter22, geocode_kakao, get_geo, lm, logit, mkcsv, mkdum, mkxlsx, mywork, recode, sel22, selvar, pipe22, select22, naver_copy, naverA
 import py412 as py
 import pandas as pd
 import numpy as np
@@ -86,23 +86,20 @@ newdf = sel22(df, 'v2:v4')
 newdf = df[['v2', 'v3', 'v4']].copy()
 
 # 변수명 바꾸기 janitor --------------
-import janitor # 설치 후 불러오기만 하면 pandas 메서드로 자동 등록됩니다.
-
-# 샘플 데이터
+# Sample data
 df_janitor = pd.DataFrame({
     'First Name': ['Kim', 'Lee'],
     'AGE (year)': [25, 30],
     'v1': [10, 20]
 })
 
-# 1) clean_names(): 공백, 특수문자, 대문자를 자동으로 소문자_언더바 형태로 일괄 정리
-df_clean = df_janitor.clean_names()
-
-# 2) rename_columns(): 딕셔너리로 간편하게 변경 (메서드 체이닝 가능)
-df_renamed = df_janitor.rename_columns({'First Name': 'name', 'AGE (year)': 'age'})
-
-# 3) 위치(인덱스) 기반으로 손쉽게 변경
-df_pos = df_janitor.rename_columns({df_janitor.columns[0]: 'id', df_janitor.columns[1]: 'age'})
+import janitor # 설치 후 불러오기만 하면 pandas 메서드로 자동 등록됩니다.
+# (1) clean_names(): 공백, 특수문자, 대문자를 자동으로 소문자_언더바 형태로 일괄 정리
+  df_clean = df_janitor.clean_names()
+# (2) rename_columns(): 딕셔너리로 간편하게 변경 (메서드 체이닝 가능)
+  df_renamed = df_janitor.rename_columns({'First Name': 'name', 'AGE (year)': 'age'})
+# (3) 위치(인덱스) 기반으로 손쉽게 변경
+  df_pos = df_janitor.rename_columns({df_janitor.columns[0]: 'id', df_janitor.columns[1]: 'age'})
 
 # filter 명령문 --------------
 df = df[df['brand'].str.contains('KIA')].copy()

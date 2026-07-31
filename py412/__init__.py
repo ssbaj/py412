@@ -23,3 +23,4 @@ from .select22 import select22
 from .selvar import selvar
 from .naver_copy import naver_copy
 from .naverA import naverA
+from .naverB import naverB

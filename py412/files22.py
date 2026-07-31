@@ -4,6 +4,10 @@ from tkinter import filedialog, messagebox
 import pandas as pd
 import os
 
+    """
+    파일을 로딩하는 패키지: xlsx, csv, txt, sav, dta 
+    """
+
 def check_dependencies():
     required_pkgs = {'pandas': 'pandas', 'openpyxl': 'openpyxl', 'chardet': 'chardet', 'pyreadstat': 'pyreadstat'}
     missing = []

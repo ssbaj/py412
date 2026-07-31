@@ -1,5 +1,11 @@
 import pandas as pd
 
+    """
+    사용법 ----
+    df['gpa'] = recode(df['gpa'], {1:'F', 2:'D', 3:'C', 4:'B', 5:'A' } )
+    df['gender'] = recode(df['gender'], {1:0, 2:1})
+    """
+
 def recode(series=None, mapping=None, **kwargs):
     # 인자가 없으면 설명서 출력
     if series is None:

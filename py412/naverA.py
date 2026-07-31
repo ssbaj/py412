@@ -5,7 +5,7 @@ naverA: 네이버 부동산 매물 텍스트(txt, 여러 개) -> 엑셀 정리 �
 1. pip install pandas openpyxl
 2. naverA() 를 실행하면 파일 선택 팝업창이 뜬다.
 3. 네이버 부동산 매물이 기록된 txt 파일
-   (예: auto_scroll_copy2.py 로 만든 my_copy202607301720.txt)을
+   (예: naver_copy.py 로 만든 my_copy202607301720.txt)을
    여러 개(2개 이상) 블록으로 선택하고 Enter 를 치면,
    선택한 모든 txt 파일의 내용을 하나로 합친 뒤 매물 정보를 정리해서
    "naver<생성시각>.xlsx" 로 저장한다. 이때 단지명/동/거래유형/
