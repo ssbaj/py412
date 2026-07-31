@@ -5,40 +5,17 @@ def mywork():
     """
     guide_text = """
 from py412 import class_col, comp22, cor22, cor33, del22, desc22, e_logit, files22, filter22, geocode_kakao, get_geo, lm, logit, mkcsv, mkdum, mkxlsx, mywork, recode, sel22, selvar, pipe22, select22, naver_copy, naverA
-import py412 as py
+
 import pandas as pd
 import numpy as np
 import statsmodels.formula.api as smf
 import inspect
 
-# HogangNONO data ---------
-addr="https://hogangnono.com/apt/6i404/item-catalog"
-out="myfuntest.csv"
-get_hogangnono_items(addr, out)
-
-# 모듈 로드 후 inspect 실행
+# 📈 모듈 로드 후 inspect 실행 ---------------
 print(inspect.getsource(py.get_geo))
 print(inspect.getsource(get_geo))
 
-# pipe22, filter22, select22 사용예 ---------------
-df = pd.DataFrame({
-    'var1': [11, 12, 13, 14, 15, 16, 17, 18],
-    'var2': [10, 20, 30, 40, 50, 60, 70, 80],
-    'var3': [111, 112, 113, 114, 115, 116, 117, 118]
-})
-
-# R 스타일: df %>% filter(...) %>% select(...)
-# 파이썬 함수 스타일:
-df2 = pipe22(
-    df,
-    lambda d: filter22(d, " ( (var2!=30)  and (var3 != 114) ) "),
-    lambda d: filter22(d, " (  var1 <= 17 ) "),    
-    lambda d: select22(d, ['var2', 'var3'])
-)
-
-##----------------------------------------------------------------
-
-# 모든 연습 문법(결측치, 텍스트 파싱, 그룹화, 회귀분석 등)을 커버하는 데이터셋
+# 📈 가상의 데이터셋 --------------
 data = {
     'id': [f'EMP_{i:02d}' for i in range(1, 16)],
     'gender': ['M', 'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M'],
@@ -67,25 +44,34 @@ data = {
 
 df = pd.DataFrame(data)
 
-# 데이터셋 미리보기
+# 데이터셋 미리보기 --------------
 print(df.head())
 
-##----------------------------------------------------------------
+# 📈 pipe22, filter22, select22 사용예 --------------
+# R 스타일: df %>% filter(...) %>% select(...)
+# 파이썬 함수 스타일:
+df2 = pipe22(
+    df,
+    lambda d: filter22(d, " ( (v2!=30)  and (v3 != 1.8) ) "),
+    lambda d: filter22(d, " (  age<=35 ) "),    
+    lambda d: select22(d, ['v2', 'v3'])
+)
 
-# 📈 데이터 마이닝 ----------
+
+# 📈 데이터 마이닝 --------------
 # Grouping variable
 cn = df['age'].quantile([0.25, 0.5, 0.75])
 df['age_group'] = pd.cut(df['age'], bins=[-np.inf, cn[0.25], cn[0.5], cn[0.75], np.inf])
 
-# Aggregate examples
+# 📈 Group별 평균.자료수.표준편차 --------------
 agg1 = df.groupby('gender')['age'].mean()
 agg2 = df.groupby('gender')['age'].agg(['count', 'mean', 'std'])
 
-# df에서 v2, v3, v4 컬럼만 추출하여 새로운 데이터프레임 생성
+# 📈 df에서 v2, v3, v4 컬럼만 추출 --------------
 newdf = sel22(df, 'v2:v4')
 newdf = df[['v2', 'v3', 'v4']].copy()
 
-# 변수명 바꾸기 janitor --------------
+# 📈 변수명 바꾸기 janitor --------------
 # Sample data
 df_janitor = pd.DataFrame({
     'First Name': ['Kim', 'Lee'],
@@ -93,7 +79,7 @@ df_janitor = pd.DataFrame({
     'v1': [10, 20]
 })
 
-import janitor # 설치 후 불러오기만 하면 pandas 메서드로 자동 등록됩니다.
+import janitor
 # (1) clean_names(): 공백, 특수문자, 대문자를 자동으로 소문자_언더바 형태로 일괄 정리
   df_clean = df_janitor.clean_names()
 # (2) rename_columns(): 딕셔너리로 간편하게 변경 (메서드 체이닝 가능)
@@ -101,29 +87,29 @@ import janitor # 설치 후 불러오기만 하면 pandas 메서드로 자동 �
 # (3) 위치(인덱스) 기반으로 손쉽게 변경
   df_pos = df_janitor.rename_columns({df_janitor.columns[0]: 'id', df_janitor.columns[1]: 'age'})
 
-# filter 명령문 --------------
+# 📈 filter 명령문 --------------
 df = df[df['brand'].str.contains('KIA')].copy()
 
-# df에서 v4 컬럼 제거 후 결과를 다시 df에 덮어쓰기
+# 📈 df에서 v4 컬럼 제거 후 결과를 다시 df에 덮어쓰기
 df = del22(df, 'v4')
 df = df.drop(columns=['v4'], errors='ignore')
 
-# 번지 만들기 --------------
+# 📈 주소addr 만들기 --------------
 df['번지'] = df['번지'].str.replace(r'0?([0-9]+)월 0?([0-9]+)일', r'\1 - \2', regex=True)
 df['addr'] = df['시군구'] + ' ' + df['번지']
 
-# Drop missing values (complete.cases)
+# 📈 Drop missing values (complete.cases)
 df = df.dropna()
 df = df.dropna(subset=['age', 'gender'])
 
-# Change column types -------
+# 📈 Change column types --------------
 cols = ['age', 'gender']
 df[cols] = df[cols].apply(pd.to_numeric, errors='coerce')
 
-# Count NA ------
+# 📈 Count NA : missing data --------------
 na_count = df['age'].isna().sum()
 
-# 📈 pivot - wide 데이터 마이닝 ----------
+# 📈 pivot - wide 데이터 마이닝 --------------
 data_pivot = {
     'id': [f'EMP_{i:02d}' for i in range(1, 5)],
     'HR': [25, 30, 42, 28],
@@ -132,19 +118,22 @@ data_pivot = {
 
 df_pivot = pd.DataFrame(data_pivot)
 
-# melt 명령어 적용
+# Pivot long 명령어 적용
 df_long = df_pivot.melt(id_vars=['id'], var_name='dept', value_name='age')
 
+# Pivot wider 명령어 적용
+df_wide = df_long.pivot_table(index='id', columns='dept', values='age', aggfunc='first').reset_index()
+
 # 두 데이터프레임 비교 출력
-print("================ [1] 원본 데이터 (df - Wide Format) ================")
+print("============ [1] 원본 데이터 (df_pivot - 원본자료) ================")
 print(df_pivot)
 print("============ [2] 변환된 데이터 (df_long - Long Format) ============")
 print(df_long)
+print("============ [3] 변환된 데이터 (df_wide - Wide Format) ============")
+print(df_wide)
 
-# Pivot wider
-df_wide = df_long.pivot_table(index='id', columns='dept', values='age', aggfunc='first').reset_index()
 
-# 📈 회귀분석 ----------
+# 📈 회귀분석 --------------
 reg_data = {
     'price': [250, 300, 350, 400, 450, 500],
     'size': [15, 20, 25, 30, 35, 40],
@@ -170,12 +159,12 @@ result_hc3 = model.fit(cov_type='HC3')
 # 4) HAC : Newey-West 표준오차. 이분산성뿐만 아니라 시계열 데이터의 자기상관 통제
 # 5) cluster : 군집 강건 표준오차 (Cluster-robust). 특정 그룹 내 상관관계 통제
 
-# 📈 시뮬레이션 1 ----------
+# 📈 시뮬레이션 1 --------------
 sim1_data = pd.DataFrame({'size': [3], 'age': [3]})
 pred1 = result.predict(sim1_data)
 print(f"예측된 price: {pred1.iloc[0]:.4f}\\n")
 
-# 📈 시뮬레이션 2 ----------
+# 📈 시뮬레이션 2 --------------
 sim2_data = pd.DataFrame({
     'size': [1, 2, 3],
     'age': [3, 3, 3]
