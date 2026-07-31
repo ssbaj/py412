@@ -5,7 +5,7 @@ import pandas as pd
 import os
 
     """
-    파일을 로딩하는 패키지: xlsx, csv, txt, sav, dta 
+    '파일을 로딩하는 패키지: xlsx, csv, txt, sav, dta'
     """
 
 def check_dependencies():

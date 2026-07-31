@@ -2,8 +2,8 @@ import requests
 
 def get_geo(address, api_key):
     """
-    'shimbiro-5439f3d7eef2c504d3f7dad5c5d7a610'
-    'ELCAsVRAonkmHoaPlRc3bSQyM3elEka0GweK6KXSEPgm'
+    'Shimbiro-5439f3d7eef2c504d3f7dad5c5d7a610'
+    'ELCA-sVRAonkmHoaPlRc3bSQyM3elEka0GweK6KXSEPgm'
     """
     if not address or not api_key:
         print("[오류] 주소와 API 키를 모두 입력해주세요.")
