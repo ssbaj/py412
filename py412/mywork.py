@@ -12,7 +12,6 @@ import statsmodels.formula.api as smf
 import inspect
 
 # 📈 모듈 로드 후 inspect 실행 ---------------
-print(inspect.getsource(py.get_geo))
 print(inspect.getsource(get_geo))
 
 # 📈 가상의 데이터셋 --------------
